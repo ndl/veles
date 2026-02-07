@@ -1,0 +1,27 @@
+#!/bin/sh
+
+case $1 in
+  get) PREFIX="GET";;
+  load-key) PREFIX="LOAD_KEY";;
+  *) echo Unknown command requested: $1 >&1; exit 1;;
+esac
+
+echo "$@" > "${TEST_TMPDIR}"/.zfs-received-args
+
+declare "STDOUT=TEST_ZFS_${PREFIX}_STDOUT"
+declare "STDERR=TEST_ZFS_${PREFIX}_STDERR"
+declare "EXITCODE=TEST_ZFS_${PREFIX}_EXITCODE"
+
+if [[ "${!STDOUT}" != "" ]]; then
+  cat "${!STDOUT}"
+fi
+
+if [[ "${!STDERR}" != "" ]]; then
+  cat "${!STDERR}"
+fi
+
+if [[ "${!EXITCODE}" != "" ]]; then
+  exit ${!EXITCODE}
+else
+  exit 0
+fi

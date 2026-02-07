@@ -1,0 +1,46 @@
+diff --git a/src/tpm2/RuntimeAlgorithm.c b/src/tpm2/RuntimeAlgorithm.c
+index f7ab2ee7..ccb57fbb 100644
+--- a/src/tpm2/RuntimeAlgorithm.c
++++ b/src/tpm2/RuntimeAlgorithm.c
+@@ -135,8 +135,8 @@ static const struct {
+     [TPM_ALG_MGF1] = HASH(ALG_MGF1, "mgf1", false, 1),
+     [TPM_ALG_KEYEDHASH] = HASH(ALG_KEYEDHASH, "keyedhash", false, 1),
+     [TPM_ALG_XOR] = OTHER(ALG_XOR, "xor", false, 1),
+-    [TPM_ALG_SHA256] = HASH(ALG_SHA256, "sha256", false, 1),
+-    [TPM_ALG_SHA384] = HASH(ALG_SHA384, "sha384", false, 1),
++    [TPM_ALG_SHA256] = HASH(ALG_SHA256, "sha256", true, 1),
++    [TPM_ALG_SHA384] = HASH(ALG_SHA384, "sha384", true, 1),
+     [TPM_ALG_SHA512] = HASH(ALG_SHA512, "sha512", true, 1),
+     [TPM_ALG_NULL] = OTHER(true, "null", false, 1),
+     [TPM_ALG_SM4] = SYMMETRIC(ALG_SM4, "sm4", s_KeySizesSM4, true, 0), // not supported
+@@ -144,8 +144,8 @@ static const struct {
+     [TPM_ALG_RSAES] = ENCRYPTING(ALG_RSAES, "rsaes", true, 1),
+     [TPM_ALG_RSAPSS] = SIGNING(ALG_RSAPSS, "rsapss", true, 1),
+     [TPM_ALG_OAEP] = ENCRYPTING(ALG_OAEP, "oaep", false, 1), // never disable: CryptSecretEncrypt/Decrypt needs it
+-    [TPM_ALG_ECDSA] = SIGNING(ALG_ECDSA, "ecdsa", false, 1),
+-    [TPM_ALG_ECDH] = OTHER(ALG_ECDH, "ecdh", false, 1),
++    [TPM_ALG_ECDSA] = SIGNING(ALG_ECDSA, "ecdsa", true, 1),
++    [TPM_ALG_ECDH] = OTHER(ALG_ECDH, "ecdh", true, 1),
+     [TPM_ALG_ECDAA] = OTHER(ALG_ECDAA, "ecdaa", true, 1),
+     [TPM_ALG_SM2] = SIGNING(ALG_SM2, "sm2", true, 1),
+     [TPM_ALG_ECSCHNORR] = SIGNING(ALG_ECSCHNORR, "ecschnorr", true, 1),
+@@ -153,7 +153,7 @@ static const struct {
+     [TPM_ALG_KDF1_SP800_56A] = HASH(ALG_KDF1_SP800_56A, "kdf1-sp800-56a", false, 1),
+     [TPM_ALG_KDF2] = HASH(ALG_KDF2, "kdf2", false, 1),
+     [TPM_ALG_KDF1_SP800_108] = HASH(ALG_KDF1_SP800_108, "kdf1-sp800-108", false, 1),
+-    [TPM_ALG_ECC] = ASYMMETRIC(ALG_ECC, "ecc", s_KeySizesECC, false, 1),
++    [TPM_ALG_ECC] = ASYMMETRIC(ALG_ECC, "ecc", s_KeySizesECC, true, 1),
+     [TPM_ALG_SYMCIPHER] = OTHER(ALG_SYMCIPHER, "symcipher", false, 1),
+     [TPM_ALG_CAMELLIA] = SYMMETRIC(ALG_CAMELLIA, "camellia", s_KeySizesCamellia, true, 1),
+     [TPM_ALG_SHA3_256] = HASH(ALG_SHA3_256, "sha3-256", true, 0), // not supported
+@@ -190,8 +190,8 @@ static const struct {
+ 
+     [TPM_ECC_NIST_P192] = ECC(ECC_NIST_P192, "ecc-nist-p192", 192, true, 1),
+     [TPM_ECC_NIST_P224] = ECC(ECC_NIST_P224, "ecc-nist-p224", 224, true, 1),
+-    [TPM_ECC_NIST_P256] = ECC(ECC_NIST_P256, "ecc-nist-p256", 256, false, 1),
+-    [TPM_ECC_NIST_P384] = ECC(ECC_NIST_P384, "ecc-nist-p384", 384, false, 1),
++    [TPM_ECC_NIST_P256] = ECC(ECC_NIST_P256, "ecc-nist-p256", 256, true, 1),
++    [TPM_ECC_NIST_P384] = ECC(ECC_NIST_P384, "ecc-nist-p384", 384, true, 1),
+     [TPM_ECC_NIST_P521] = ECC(ECC_NIST_P521, "ecc-nist-p521", 521, true, 1),
+     [TPM_ECC_BN_P256] = ECC(ECC_BN_P256, "ecc-bn-p256", 256, true, 1),
+     [TPM_ECC_BN_P638] = ECC(ECC_BN_P638, "ecc-bn-p638", 638, true, 1),

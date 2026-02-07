@@ -1,0 +1,5 @@
+rm -f "${KEYS_FILE}"
+for key in `keyctl rlist @u`; do
+  descr=`keyctl describe $key`
+  echo ${descr#*user: }:`keyctl pipe $key` >> "${KEYS_FILE}"
+done

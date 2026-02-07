@@ -1,0 +1,424 @@
+diff --git a/src/tpm2/CryptUtil.c b/src/tpm2/CryptUtil.c
+index 36e82eaa..8f85cf9e 100644
+--- a/src/tpm2/CryptUtil.c
++++ b/src/tpm2/CryptUtil.c
+@@ -67,7 +67,60 @@
+ //** Includes
+ #include "Tpm.h"
+ #include "Marshal.h"
+-
++#include <ctype.h>
++
++void doLogBlob(const char* msg, const uint8_t *blob, size_t size);
++
++void doLogBlob(const char* msg, const uint8_t *blob, size_t size) {
++    fprintf(stderr, "%s:\n", msg);
++    unsigned int i, y, x, off, off2;
++    unsigned int width = 16;
++#define LINE_LEN 64
++    char buffer[LINE_LEN];
++
++    for (i = 1, off = 0, off2 = 0; i <= size; i++) {
++        if (i == 1) {
++            sprintf(&buffer[off], "%04x: ", i - 1);
++            off += 6;
++        }
++
++        /* data output */
++        sprintf(&buffer[off], "%02x", blob[i - 1]);
++        off += 2;
++
++        /* ASCII output */
++        if ((i % width == 0 && i > 1) || i == size) {
++            sprintf(&buffer[off], "  ");
++            off += 2;
++            /* Align to the right */
++            for (x = off; x < width * 2 + 8; x++) {
++                sprintf(&buffer[off], " ");
++                off++;
++            }
++
++            /* Account for a line that is not 'full' */
++            unsigned int less = width - (i % width);
++            if (less == width)
++                less = 0;
++
++            for (y = 0; y < width - less; y++) {
++                if (isgraph(blob[off2 + y])) {
++                    sprintf(&buffer[y + off], "%c", blob[off2 + y]);
++                } else {
++                    sprintf(&buffer[y + off], "%c", '.');
++                }
++            }
++            /* print the line and restart */
++            fprintf(stderr, "%s\n", buffer);
++            fflush(stderr);
++            off2 = i;
++            off = 0;
++            memset(buffer, '\0', LINE_LEN);
++            sprintf(&buffer[off], "%04x: ", i);
++            off += 6;
++        }
++    }
++}
+ //****************************************************************************/
+ //**     Hash/HMAC Functions
+ //****************************************************************************/
+@@ -343,6 +396,12 @@ void ParmEncryptSym(TPM_ALG_ID symAlg,         // IN: symmetric algorithm
+     if(iv.t.size > 0)
+ 	{
+ 	    // Generate key and iv
++            fprintf(stderr, "Encrypting params with hash 0x%X and keySize=%d, IV size=%d\n", hash, keySize, iv.t.size);
++            doLogBlob("key", &key->buffer[0], key->size);
++            doLogBlob("key", &CFB_KEY->buffer[0], CFB_KEY->size);
++            doLogBlob("nonceTpm", &nonceTpm->buffer[0], nonceTpm->size);
++            doLogBlob("nonceCaller", &nonceCaller->buffer[0], nonceCaller->size);
++            fprintf(stderr, "bits: %d\n", keySizeInBits + (iv.t.size * 8));
+ 	    CryptKDFa(hash,
+ 		      key,
+ 		      CFB_KEY,
+@@ -353,6 +412,7 @@ void ParmEncryptSym(TPM_ALG_ID symAlg,         // IN: symmetric algorithm
+ 		      NULL,
+ 		      FALSE);
+ 	    MemoryCopy(iv.t.buffer, &symParmString[keySize], iv.t.size);
++            doLogBlob("Key + IV", &symParmString[0], keySize + iv.t.size);
+ 
+ 	    CryptSymmetricEncrypt(data,
+ 				  symAlg,
+@@ -810,6 +870,7 @@ CryptSecretDecrypt(OBJECT*      decryptKey,   // IN: decrypt key
+ 
+ 		  // Retrieve ECC point from secret buffer
+ 		  result = TPMS_ECC_POINT_Unmarshal(&eccPublic, &buffer, &size);
++                  fprintf(stderr, "TPMS_ECC_POINT_Unmarshal result: %d\n", result);
+ 		  if(result == TPM_RC_SUCCESS)
+ 		      {
+ 			  result = CryptEccPointMultiply(
+@@ -819,6 +880,9 @@ CryptSecretDecrypt(OBJECT*      decryptKey,   // IN: decrypt key
+ 							 &decryptKey->sensitive.sensitive.ecc,
+ 							 NULL,
+ 							 NULL);
++                          doLogBlob("eccPublic.x (client side)", &eccPublic.x.b.buffer[0], eccPublic.x.b.size);
++                          doLogBlob("eccSecret.x (Z)", &eccSecret.x.b.buffer[0], eccSecret.x.b.size);
++                          doLogBlob("TPM pubKey.x", &decryptKey->publicArea.unique.ecc.x.b.buffer[0], decryptKey->publicArea.unique.ecc.x.b.size);
+ 			  if(result == TPM_RC_SUCCESS)
+ 			      {
+ 				  // Set the size of the "recovered" secret value to be the size
+@@ -846,6 +910,7 @@ CryptSecretDecrypt(OBJECT*      decryptKey,   // IN: decrypt key
+ 					    &decryptKey->publicArea.unique.ecc.x.b,
+ 					    data->t.size * 8,
+ 					    data->t.buffer);
++                                  doLogBlob("Derived secret", data->t.buffer, data->t.size);
+ 			      }
+ 		      }
+ 	      }
+diff --git a/src/tpm2/Session.c b/src/tpm2/Session.c
+index ca1a203a..9e857bd3 100644
+--- a/src/tpm2/Session.c
++++ b/src/tpm2/Session.c
+@@ -145,6 +145,8 @@
+ #define SESSION_C
+ #include "Tpm.h"
+ 
++void doLogBlob(const char* msg, const uint8_t *blob, size_t size);
++
+ //** File Scope Function -- ContextIdSetOldest()
+ /*
+   This function is called when the oldest contextID is being loaded or deleted.
+@@ -559,6 +561,11 @@ SessionCreate(TPM_SE         sessionType,    // IN: the session type
+ 	    MemoryConcat2B(&key.b, &seed->b, sizeof(key.t.buffer));
+ 
+ 	    // Compute the session key
++            fprintf(stderr, "authHashAlg: 0x%X\n", session->authHashAlg);
++            doLogBlob("salt", &key.b.buffer[0], key.b.size);
++            doLogBlob("SESSION_KEY", &SESSION_KEY->buffer[0], SESSION_KEY->size);
++            doLogBlob("TPM nonce", &session->nonceTPM.b.buffer[0], session->nonceTPM.b.size);
++            doLogBlob("nonceCaller", &nonceCaller->b.buffer[0], nonceCaller->b.size);
+ 	    CryptKDFa(session->authHashAlg,
+ 		      &key.b,
+ 		      SESSION_KEY,
+@@ -568,6 +575,7 @@ SessionCreate(TPM_SE         sessionType,    // IN: the session type
+ 		      session->sessionKey.t.buffer,
+ 		      NULL,
+ 		      FALSE);
++            doLogBlob("sessionKey", &session->sessionKey.t.buffer[0], session->sessionKey.t.size);
+ 	}
+ 
+     // Copy the name of the entity that the HMAC session is bound to
+diff --git a/src/tpm2/SessionProcess.c b/src/tpm2/SessionProcess.c
+index a0693303..34d19559 100644
+--- a/src/tpm2/SessionProcess.c
++++ b/src/tpm2/SessionProcess.c
+@@ -72,6 +72,8 @@
+ #include "ACT.h"
+ #include "Marshal.h"
+ 
++void doLogBlob(const char* msg, const uint8_t *blob, size_t size);
++
+ //
+ //**  Authorization Support Functions
+ //
+@@ -615,6 +617,7 @@ static TPM2B_DIGEST* ComputeCpHash(COMMAND* command,  // IN: command parsing str
+     HASH_STATE    hashState;
+     TPM2B_NAME    name;
+     TPM2B_DIGEST* cpHash;
++    fprintf(stderr, "ComputeCpHash: 0\n");
+     //
+     // cpHash = hash(commandCode [ || authName1
+     //                           [ || authName2
+@@ -630,14 +633,19 @@ static TPM2B_DIGEST* ComputeCpHash(COMMAND* command,  // IN: command parsing str
+ 	    //  Add commandCode.
+ 	    CryptDigestUpdateInt(&hashState, sizeof(TPM_CC), command->code);
+ 	    //  Add authNames for each of the handles.
+-	    for(i = 0; i < command->handleNum; i++)
++	    for(i = 0; i < command->handleNum; i++) {
+ 		CryptDigestUpdate2B(&hashState,
+ 				    &EntityGetName(command->handles[i], &name)->b);
++                fprintf(stderr, "authName[%d]", i);
++                doLogBlob("", &EntityGetName(command->handles[i], &name)->b.buffer[0], EntityGetName(command->handles[i], &name)->b.size);
++            }
+ 	    //  Add the parameters.
+ 	    CryptDigestUpdate(
+ 			      &hashState, command->parameterSize, command->parameterBuffer);
++            doLogBlob("params", &command->parameterBuffer[0], command->parameterSize);
+ 	    //  Complete the hash.
+ 	    CryptHashEnd2B(&hashState, &cpHash->b);
++            doLogBlob("cpHash", &cpHash->b.buffer[0], cpHash->b.size);
+ 	}
+     return cpHash;
+ }
+@@ -668,6 +676,7 @@ static BOOL CompareTemplateHash(COMMAND* command,  // IN: parsing structure
+     INT32        pSize   = command->parameterSize;
+     TPM2B_DIGEST tHash;
+     UINT16       size;
++    fprintf(stderr, "ComputeTemplateHash\n");
+     //
+     // Only try this for the three commands for which it is intended
+     if(command->code != TPM_CC_Create && command->code != TPM_CC_CreatePrimary
+@@ -713,6 +722,7 @@ BOOL CompareNameHash(COMMAND* command,  // IN: main parsing structure
+     TPM2B_DIGEST nameHash;
+     UINT32       i;
+     TPM2B_NAME   name;
++    fprintf(stderr, "CompareNameHash\n");
+     //
+     nameHash.t.size = CryptHashStart(&hashState, session->authHashAlg);
+     //  Add names.
+@@ -735,6 +745,7 @@ BOOL CompareParametersHash(COMMAND* command,  // IN: main parsing structure
+ {
+     HASH_STATE   hashState;
+     TPM2B_DIGEST pHash;
++    fprintf(stderr, "CompareParametersHash\n");
+     //
+     pHash.t.size = CryptHashStart(&hashState, session->authHashAlg);
+     //  Add commandCode.
+@@ -844,6 +855,7 @@ static TPM2B_DIGEST* ComputeCommandHMAC(
+     nonceDecrypt = NULL;
+     nonceEncrypt = NULL;
+ 
++    fprintf(stderr, "ComputeCommandHMAC: 0\n");
+     // Determine if extra nonceTPM values are going to be required.
+     // If this is the first session (sessionIndex = 0) and it is an authorization
+     // session that uses an HMAC, then check if additional session nonces are to be
+@@ -877,6 +889,7 @@ static TPM2B_DIGEST* ComputeCommandHMAC(
+ 
+     // Generate HMAC key.
+     MemoryCopy2B(&key.b, &session->sessionKey.b, sizeof(key.t.buffer));
++    doLogBlob("sessionKey", &session->sessionKey.b.buffer[0], session->sessionKey.b.size);
+ 
+     // Check if the session has an associated handle and if the associated entity
+     // is the one to which the session is bound. If not, add the authValue of
+@@ -893,11 +906,13 @@ static TPM2B_DIGEST* ComputeCommandHMAC(
+ 	    EntityGetAuthValue(s_associatedHandles[sessionIndex], &authValue);
+ 	    // add the authValue to the HMAC key
+ 	    MemoryConcat2B(&key.b, &authValue.b, sizeof(key.t.buffer));
++            doLogBlob("HMAC after authValue update", &authValue.b.buffer[0], sizeof(key.t.buffer));
+ 	}
+     // if the HMAC key size is 0, a NULL string HMAC is allowed
+     if(key.t.size == 0 && s_inputAuthValues[sessionIndex].t.size == 0)
+ 	{
+ 	    hmac->t.size = 0;
++            fprintf(stderr, "NULL HMAC\n");
+ 	    return hmac;
+ 	}
+     // Start HMAC
+@@ -906,19 +921,29 @@ static TPM2B_DIGEST* ComputeCommandHMAC(
+     //  Add cpHash
+     CryptDigestUpdate2B(&hmacState.hashState,
+ 			&ComputeCpHash(command, session->authHashAlg)->b);
++    TPM2B_DIGEST* cpHash = GetCpHashPointer(command, session->authHashAlg);
++    doLogBlob("CpHash", &cpHash->b.buffer[0], cpHash->b.size);
+     //  Add nonces as required
+     CryptDigestUpdate2B(&hmacState.hashState, &s_nonceCaller[sessionIndex].b);
++    doLogBlob("nonceCaller", &s_nonceCaller[sessionIndex].b.buffer[0], s_nonceCaller[sessionIndex].b.size);
+     CryptDigestUpdate2B(&hmacState.hashState, &session->nonceTPM.b);
+-    if(nonceDecrypt != NULL)
++    doLogBlob("nonceTPM", &session->nonceTPM.b.buffer[0], session->nonceTPM.b.size);
++    if(nonceDecrypt != NULL) {
+ 	CryptDigestUpdate2B(&hmacState.hashState, &nonceDecrypt->b);
+-    if(nonceEncrypt != NULL)
++        doLogBlob("nonceDecrypt", &nonceDecrypt->b.buffer[0], nonceDecrypt->b.size);
++    }
++    if(nonceEncrypt != NULL) {
+ 	CryptDigestUpdate2B(&hmacState.hashState, &nonceEncrypt->b);
++        doLogBlob("nonceEncrypt", &nonceEncrypt->b.buffer[0], nonceEncrypt->b.size);
++    }
+     //  Add sessionAttributes
+     buffer      = marshalBuffer;
+     marshalSize = TPMA_SESSION_Marshal(&(s_attributes[sessionIndex]), &buffer, NULL);
+     CryptDigestUpdate(&hmacState.hashState, marshalSize, marshalBuffer);
++    doLogBlob("sessionAttributes", &marshalBuffer[0], marshalSize);
+     // Complete the HMAC computation
+     CryptHmacEnd2B(&hmacState, &hmac->b);
++    doLogBlob("Final command HMAC", &hmac->b.buffer[0], hmac->b.size);
+ 
+     return hmac;
+ }
+@@ -944,6 +969,7 @@ static TPM_RC CheckSessionHMAC(
+ 			       )
+ {
+     TPM2B_DIGEST hmac;  // authHMAC for comparing
++    fprintf(stderr, "ComputeSessionHMAC\n");
+     //
+     // Compute authHMAC
+     ComputeCommandHMAC(command, sessionIndex, &hmac);
+@@ -995,27 +1021,31 @@ static TPM_RC CheckPolicyAuthSession(
+     //
+     // Initialize pointer to the authorization session.
+     session = SessionGet(s_sessionHandles[sessionIndex]);
+-
++    fprintf(stderr, "CheckPolicyAuthSession: 0\n");
+     // If the command is TPM2_PolicySecret(), make sure that
+     // either password or authValue is required
+     if(command->code == TPM_CC_PolicySecret
+        && session->attributes.isPasswordNeeded == CLEAR
+        && session->attributes.isAuthValueNeeded == CLEAR)
+ 	return TPM_RC_MODE;
++    fprintf(stderr, "CheckPolicyAuthSession: 1\n");
+     // See if the PCR counter for the session is still valid.
+     if(!SessionPCRValueIsCurrent(session))
+ 	return TPM_RC_PCR_CHANGED;
++    fprintf(stderr, "CheckPolicyAuthSession: 2\n");
+     // Get authPolicy.
+     policyAlg = EntityGetAuthPolicy(s_associatedHandles[sessionIndex], &authPolicy);
+     // Compare authPolicy.
+     if(!MemoryEqual2B(&session->u2.policyDigest.b, &authPolicy.b))
+ 	return TPM_RC_POLICY_FAIL;
++    fprintf(stderr, "CheckPolicyAuthSession: 3\n");
+     // Policy is OK so check if the other factors are correct
+ 
+     // Compare policy hash algorithm.
+     if(policyAlg != session->authHashAlg)
+ 	return TPM_RC_POLICY_FAIL;
+ 
++    fprintf(stderr, "CheckPolicyAuthSession: 4\n");
+     // Compare timeout.
+     if(session->timeout != 0)
+ 	{
+@@ -1028,6 +1058,7 @@ static TPM_RC CheckPolicyAuthSession(
+ 	    if((session->timeout < g_time) || (session->epoch != g_timeEpoch))
+ 		return TPM_RC_EXPIRED;
+ 	}
++    fprintf(stderr, "CheckPolicyAuthSession: 5\n");
+     // If command code is provided it must match
+     if(session->commandCode != 0)
+ 	{
+@@ -1042,6 +1073,7 @@ static TPM_RC CheckPolicyAuthSession(
+ 	    if(role == AUTH_ADMIN || role == AUTH_DUP)
+ 		return TPM_RC_POLICY_FAIL;
+ 	}
++    fprintf(stderr, "CheckPolicyAuthSession: 6\n");
+     // Check command locality.
+     {
+ 	BYTE  sessionLocality[sizeof(TPMA_LOCALITY)];
+@@ -1076,9 +1108,11 @@ static TPM_RC CheckPolicyAuthSession(
+ 		    }
+ 	    }
+     }  // end of locality check
++    fprintf(stderr, "CheckPolicyAuthSession: 7\n");
+     // Check physical presence.
+     if(session->attributes.isPPRequired == SET && !_plat__PhysicalPresenceAsserted())
+ 	return TPM_RC_PP;
++    fprintf(stderr, "CheckPolicyAuthSession: 8\n");
+     // Compare cpHash/nameHash/pHash/templateHash if defined.
+     if(session->u1.cpHash.b.size != 0)
+ 	{
+@@ -1099,6 +1133,7 @@ static TPM_RC CheckPolicyAuthSession(
+ 	    if(!OK)
+ 		return TPM_RCS_POLICY_FAIL;
+ 	}
++    fprintf(stderr, "CheckPolicyAuthSession: 9\n");
+     if(session->attributes.checkNvWritten)
+ 	{
+ 	    NV_REF    locator;
+@@ -1115,6 +1150,7 @@ static TPM_RC CheckPolicyAuthSession(
+ 	       != (session->attributes.nvWrittenState == SET))
+ 		return TPM_RC_POLICY_FAIL;
+ 	}
++    fprintf(stderr, "CheckPolicyAuthSession: 10\n");
+     return TPM_RC_SUCCESS;
+ }
+ 
+@@ -1139,6 +1175,7 @@ static TPM_RC RetrieveSessionData(
+     TPM_HT       sessionType;
+     INT32        sessionIndex;
+     TPM_RC       errorIndex;
++    fprintf(stderr, "RetrieveSessionData\n");
+     //
+     s_decryptSessionIndex = UNDEFINED_INDEX;
+     s_encryptSessionIndex = UNDEFINED_INDEX;
+@@ -1373,6 +1410,7 @@ static TPM_RC CheckAuthSession(
+     TPM_HANDLE associatedHandle  = s_associatedHandles[sessionIndex];
+     TPM_HT     sessionHandleType = HandleGetType(sessionHandle);
+     BOOL       authUsed;
++    fprintf(stderr, "CheckAuthSession\n");
+     //
+     pAssert(sessionHandle != TPM_RH_UNASSIGNED);
+ 
+@@ -1509,6 +1547,7 @@ static TPM_RC CheckCommandAudit(COMMAND* command)
+     // available so that TPM2_GetCommandAuditDigest() is able to increment
+     // audit counter. If NV is not available, the function bails out to prevent
+     // the TPM from attempting an operation that would fail anyway.
++    fprintf(stderr, "CheckCommandAuditDigest\n");
+     if(gr.commandAuditDigest.t.size == 0
+        || GetCommandCode(command->index) == TPM_CC_GetCommandAuditDigest)
+ 	{
+@@ -1540,6 +1579,7 @@ ParseSessionBuffer(COMMAND* command  // IN: the structure that contains
+     UINT32     sessionIndex;
+     TPM_RC     errorIndex;
+     SESSION*   session = NULL;
++    fprintf(stderr, "ParseSessionBuffer\n");
+     //
+     // Check if a command allows any session in its session area.
+     if(!IsSessionAllowed(command->index))
+@@ -1694,6 +1734,7 @@ CheckAuthNoSession(COMMAND* command  // IN: command parsing structure
+ 		   )
+ {
+     UINT32 i;
++    fprintf(stderr, "CheckAuthNoSession\n");
+ #if CC_GetCommandAuditDigest
+     TPM_RC result = TPM_RC_SUCCESS;
+ #endif
+@@ -1958,6 +1999,7 @@ static void ComputeResponseHMAC(
+     BYTE*         buffer;
+     UINT32        marshalSize;
+     HMAC_STATE    hmacState;
++    fprintf(stderr, "ComputeResponseHMAC\n");
+     TPM2B_DIGEST* rpHash = ComputeRpHash(command, session->authHashAlg);
+     //
+     // Generate HMAC key
+@@ -2036,6 +2078,7 @@ static TPM2B_NONCE* BuildSingleResponseAuth(
+ 					    TPM2B_AUTH* auth           // OUT: authHMAC
+ 					    )
+ {
++    fprintf(stderr, "BuildSingleResponseAuth\n");
+     // Fill in policy/HMAC based session response.
+     SESSION* session = SessionGet(s_sessionHandles[sessionIndex]);
+     //
+@@ -2088,6 +2131,8 @@ BuildResponseSession(COMMAND* command  // IN: structure that has relevant comman
+ {
+     TPM_RC result = TPM_RC_SUCCESS;
+ 
++    fprintf(stderr, "BuildResponseSession\n");
++
+     pAssert(command->authSize == 0);
+ 
+     // Reset the parameter buffer to point to the start of the parameters so that

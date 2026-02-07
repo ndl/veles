@@ -1,0 +1,5 @@
+if [[ -f "${KEYS_FILE}" ]]; then
+  for kv in `cat "${KEYS_FILE}"`; do
+    keyctl add user "${kv%:*}" "${kv#*:}" @u
+  done
+fi

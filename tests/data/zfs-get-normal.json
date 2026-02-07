@@ -1,0 +1,453 @@
+{
+  "output_version": {
+    "command": "zfs get",
+    "vers_major": 0,
+    "vers_minor": 1
+  },
+  "datasets": {
+    "zpool": {
+      "name": "zpool",
+      "type": "FILESYSTEM",
+      "pool": "zpool",
+      "createtxg": "1",
+      "properties": {
+        "acltype": {
+          "value": "posix",
+          "source": {
+            "type": "LOCAL",
+            "data": "-"
+          }
+        },
+        "canmount": {
+          "value": "on",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "casesensitivity": {
+          "value": "sensitive",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "checksum": {
+          "value": "on",
+          "source": {
+            "type": "DEFAULT",
+            "data": "-"
+          }
+        },
+        "createtxg": {
+          "value": "2",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "encryption": {
+          "value": "aes-256-gcm",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "encryptionroot": {
+          "value": "zpool",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "guid": {
+          "value": "1234567890123456789",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "keyformat": {
+          "value": "passphrase",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "keylocation": {
+          "value": "prompt",
+          "source": {
+            "type": "LOCAL",
+            "data": "-"
+          }
+        },
+        "longname": {
+          "value": "off",
+          "source": {
+            "type": "LOCAL",
+            "data": "-"
+          }
+        },
+        "mountpoint": {
+          "value": "legacy",
+          "source": {
+            "type": "LOCAL",
+            "data": "-"
+          }
+        },
+        "normalization": {
+          "value": "none",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "objsetid": {
+          "value": "123",
+          "source": {
+            "type": "LOCAL",
+            "data": "-"
+          }
+        },
+        "overlay": {
+          "value": "on",
+          "source": {
+            "type": "DEFAULT",
+            "data": "-"
+          }
+        },
+        "pbkdf2iters": {
+          "value": "350000",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "type": {
+          "value": "filesystem",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "used": {
+          "value": "1.23T",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "utf8only": {
+          "value": "off",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "zoned": {
+          "value": "off",
+          "source": {
+            "type": "DEFAULT",
+            "data": "-"
+          }
+        }
+      }
+    },
+    "zpool/home": {
+      "name": "zpool/home",
+      "type": "FILESYSTEM",
+      "pool": "zpool",
+      "createtxg": "3",
+      "properties": {
+        "acltype": {
+          "value": "posix",
+          "source": {
+            "type": "INHERITED",
+            "data": "zpool"
+          }
+        },
+        "canmount": {
+          "value": "on",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "casesensitivity": {
+          "value": "sensitive",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "checksum": {
+          "value": "on",
+          "source": {
+            "type": "DEFAULT",
+            "data": "-"
+          }
+        },
+        "createtxg": {
+          "value": "4",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "encryption": {
+          "value": "aes-256-gcm",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "encryptionroot": {
+          "value": "zpool",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "guid": {
+          "value": "23456789012345678901",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "keyformat": {
+          "value": "passphrase",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "keylocation": {
+          "value": "none",
+          "source": {
+            "type": "DEFAULT",
+            "data": "-"
+          }
+        },
+        "longname": {
+          "value": "off",
+          "source": {
+            "type": "LOCAL",
+            "data": "-"
+          }
+        },
+        "mountpoint": {
+          "value": "legacy",
+          "source": {
+            "type": "LOCAL",
+            "data": "-"
+          }
+        },
+        "normalization": {
+          "value": "none",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "objsetid": {
+          "value": "456",
+          "source": {
+            "type": "LOCAL",
+            "data": "-"
+          }
+        },
+        "overlay": {
+          "value": "on",
+          "source": {
+            "type": "DEFAULT",
+            "data": "-"
+          }
+        },
+        "pbkdf2iters": {
+          "value": "350000",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "type": {
+          "value": "filesystem",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "used": {
+          "value": "456G",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "utf8only": {
+          "value": "off",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "zoned": {
+          "value": "off",
+          "source": {
+            "type": "DEFAULT",
+            "data": "-"
+          }
+        }
+      }
+    },
+    "zpool/root": {
+      "name": "zpool/root",
+      "type": "FILESYSTEM",
+      "pool": "zpool",
+      "createtxg": "5",
+      "properties": {
+        "acltype": {
+          "value": "posix",
+          "source": {
+            "type": "INHERITED",
+            "data": "zpool"
+          }
+        },
+        "canmount": {
+          "value": "on",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "casesensitivity": {
+          "value": "sensitive",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "checksum": {
+          "value": "on",
+          "source": {
+            "type": "DEFAULT",
+            "data": "-"
+          }
+        },
+        "createtxg": {
+          "value": "6",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "encryption": {
+          "value": "aes-256-gcm",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "encryptionroot": {
+          "value": "zpool",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "guid": {
+          "value": "3456789012345678901",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "keyformat": {
+          "value": "passphrase",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "keylocation": {
+          "value": "none",
+          "source": {
+            "type": "DEFAULT",
+            "data": "-"
+          }
+        },
+        "longname": {
+          "value": "off",
+          "source": {
+            "type": "LOCAL",
+            "data": "-"
+          }
+        },
+        "mountpoint": {
+          "value": "legacy",
+          "source": {
+            "type": "LOCAL",
+            "data": "-"
+          }
+        },
+        "normalization": {
+          "value": "none",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "objsetid": {
+          "value": "789",
+          "source": {
+            "type": "LOCAL",
+            "data": "-"
+          }
+        },
+        "overlay": {
+          "value": "on",
+          "source": {
+            "type": "DEFAULT",
+            "data": "-"
+          }
+        },
+        "pbkdf2iters": {
+          "value": "350000",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "type": {
+          "value": "filesystem",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "used": {
+          "value": "789G",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "utf8only": {
+          "value": "off",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "zoned": {
+          "value": "off",
+          "source": {
+            "type": "DEFAULT",
+            "data": "-"
+          }
+        }
+      }
+    }
+  }
+}

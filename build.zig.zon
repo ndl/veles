@@ -1,0 +1,25 @@
+.{
+    .name = .veles,
+    .version = "0.3.5",
+    .fingerprint = 0x2c036863500c779f, // Changing this has security and trust implications.
+    .minimum_zig_version = "0.15.2",
+    .dependencies = .{
+        .zigcli = .{
+            .url = "https://github.com/jiacai2050/zigcli/archive/refs/tags/v0.3.0.zip",
+            .hash = "zigcli-0.3.0-ORC7jBOfAgCIb2bCGaDWiuoJ8oBkoT9-ftj0c2SBrTX0",
+        },
+        .ziglangSet = .{
+            .url = "https://github.com/deckarep/ziglang-set/archive/d63232266deb61c334da8f198e32a3fb51012650.tar.gz",
+            .hash = "ziglangSet-0.0.1-VUjv0hoUAgAxi3Zu4l_6QRnST7KqzKJW9n0FV1WKfweT",
+        },
+    },
+    .paths = .{
+        "CHANGELOG.md",
+        "LICENSE.txt",
+        "README.md",
+        "build.zig",
+        "build.zig.zon",
+        "docs",
+        "src",
+    },
+}
