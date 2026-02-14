@@ -76,7 +76,10 @@ pub fn loadVerificationConfig(
     allocator: std.mem.Allocator,
     input_path: []const u8,
 ) !std.json.Parsed(VerificationConfig) {
-    var config_file = try std.fs.cwd().openFile(input_path, .{});
+    var config_file = std.fs.cwd().openFile(input_path, .{}) catch |err| {
+        std.log.err("Failed to load Veles config '{s}': {t}", .{ input_path, err });
+        return err;
+    };
     defer config_file.close();
     var reader_buf: [BUFFER_SIZE]u8 = undefined;
     var reader = config_file.reader(&reader_buf);
@@ -87,7 +90,10 @@ pub fn loadVerificationConfig(
         allocator,
         &json_reader,
         .{},
-    );
+    ) catch |err| {
+        std.log.err("Failed to parse Veles config '{s}': {t}", .{ input_path, err });
+        return err;
+    };
     return parsed_config;
 }
 

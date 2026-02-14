@@ -71,6 +71,7 @@ pub fn getAllPasswords(
     input: []const u8,
     systemd_ask_password: bool,
     check_only: bool,
+    prompt_if_not_manual: bool,
 ) !bool {
     // Load verification config.
     var parsed_config = try common.loadVerificationConfig(allocator, input);
@@ -87,7 +88,9 @@ pub fn getAllPasswords(
         // Check if the password is already present in keyring,
         // can happen if `loadImpl` was partially successful.
         if (keyutils.getPasswordFromKeyring(keyname, &buf)) |_| {
-            continue;
+            if (!prompt_if_not_manual or try passwords.isManualPassword(allocator, enc_root)) {
+                continue;
+            }
         } else |_| {}
 
         const prompt = try std.fmt.allocPrint(
@@ -127,6 +130,7 @@ pub fn getAllPasswords(
             checker,
             systemd_ask_password,
         );
+        try passwords.markPasswordAsManual(allocator, enc_root);
     }
 
     return true;
@@ -216,6 +220,7 @@ pub fn run(allocator: std.mem.Allocator, opts: Options) !void {
                 opts.input,
                 opts.systemd_ask_password,
                 opts.check_only,
+                false, // prompt_if_not_manual
             )) |_| {
                 std.log.warn("Keys loading failed but passwords were provided interactively", .{});
                 return;

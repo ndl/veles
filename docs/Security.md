@@ -28,9 +28,13 @@ datasets authentication only - see "Datasets authentication without TPM" in
 
 ## Target use case and assumptions
 
-For the purposes of this discussion, Veles implements two fairly specific tasks:
+The main use case for Veles is to allow the system to boot from encrypted ZFS datasets without
+the user entering the passwords for these datasets on each boot, while protecting these
+passwords from not very sophisticated attacker who has full physical access to the system.
 
-* Load passwords for ZFS datasets from TPM when some pre-conditions are met.
+To implement this use case, Veles performs the following two main tasks on each boot:
+
+* Load passwords for ZFS datasets from TPM if the boot environment is in the expected state.
 * Authenticate the mounted ZFS datasets before the boot process is transfered to these datasets.
 
 In order to perform these tasks securely, Veles requires a lot of assumptions to be met in other
@@ -68,7 +72,8 @@ or partially) protect from.
 As long as trusted boot chain (BIOS / UEFI -> bootloader -> Linux kernel -> initrd environment +
 their TPM measurements) works as intended, Veles should not unseal the passwords in the untrusted
 environment. That is, if somebody clears CMOS / resets BIOS state / disables Secure Boot in any
-other way and then tries to boot the system - passwords unsealing should fail.
+other way and then tries to boot the system - passwords unsealing should fail so the attacker
+won't get access to them.
 
 ### Filesystem replacement
 
@@ -79,12 +84,13 @@ See the description in
 Veles tries to evade this attack by authenticating the mounted encrypted datasets.
 
 This authentication is done by verifying the salted hash file of the encryption password that is
-written to this dataset during Veles setup phase. In principle, absent bugs in ZFS implementation,
-this should ensure that we're seeing the "authentic" dataset - because the only ways to present
-the correct contents of this file to Veles is to either read it from the encrypted dataset
-(and for accessing this file on the encrypted dataset, one should know the encryption password,
-which is exactly what we're protecting) or to compute it and write it to "fake / replacement"
-dataset (and that also requires knowing the encryption password).
+written to this dataset during Veles `setup` stage. In principle, absent bugs in ZFS
+implementation, this should ensure that we're seeing the "authentic" dataset - because the only
+ways to present the correct contents of this file to Veles is to either read it from the encrypted
+dataset (and for accessing this file on the encrypted dataset, one should either know the
+encryption password - which is exactly what we're protecting - or have root-level dataset access
+already via other means) or to compute it and write it to "fake / replacement" dataset (and that
+also requires knowing the encryption password).
 
 ### Datasets swapping
 
@@ -132,11 +138,11 @@ The attacks below are (some of the) known attacks that are likely to be successf
 Veles-protected system but are out-of-scope. That is - Veles is currently not designed (and
 likely will never be designed) to protect the system from these attacks.
 
-### Setup phase
+### Setup stage
 
 Veles assumes the `setup` is done in trusted environment and no mitigations from any attacks
 at this stage are employed. Only `load` and `verify` stages should be considered protected from
-some of the attacks types.
+the attacks described above.
 
 ### Weak setup or integration
 
@@ -145,12 +151,13 @@ Any errors in setup or integration, such as (but not limited to):
 * Measuring wrong / incomplete set of PCRs for the intended use case.
 * Authenticating wrong / incomplete set of ZFS datasets.
 * Having non-encrypted ZFS datasets participating in boot.
+* Having auto-mounted ZFS datasets that are not authenticated by Veles.
 * Having weak passwords on encrypted ZFS datasets.
 * Any issues / weaknesses in Security Boot setup.
 * Being able to bypass `verify` calls.
 * Being able to drop into emergency shell during boot.
 
-... and much more are explicitly "out of scope".
+... and much more are "out of scope".
 
 Note this includes any setup that allows the attacker to interact with Veles during `load` or
 `verify` calls from console. There's some rudimentary hardening (e.g. Veles ignores SIGINT signals
@@ -160,8 +167,8 @@ is not interacting with the user directly in any way.
 
 ### Non-trusted boot
 
-Any vulnerabilities in BIOS / UEFI, bootloader, Linux or TPM that compromise correct TPM
-measurements functionality are explicitly "out of scope".
+Any vulnerabilities in BIOS / UEFI, Secure Boot, bootloader, Linux or TPM that compromise correct
+TPM measurements functionality are "out of scope".
 
 ### Filesystem replacement
 
@@ -175,14 +182,19 @@ ZFS implementation. However I'm not sure how extensively ZFS encryption implemen
 to guarantee the absence of any bugs like this.
 
 Any issues in ZFS filesystem implementation that can lead to the breach of Veles authentication
-scheme are explicitly "out of scope" from Veles target use case.
+scheme are "out of scope" from Veles target use case.
 
 ### [Evil maid](https://en.wikipedia.org/wiki/Evil_maid_attack)
 
-If you haven't disabled fallback option for Veles `load` phase - you can end up entering the
-password into attacker-controlled environment, so **don't ever** enter the password after
-(seemingly) Veles prompt unless you know **exactly** why the automatic unsealing failed and are
-**sure** that the environment is currently not attacker-controlled.
+By default the `--no_fallback` option is not set for either `load` or `verify` stages, so if
+the unsealing ov verification fails - you can still boot by entering passwords manually. Note,
+however, that this is also exactly how the "evil maid" attack scenario will look like, that
+is - if somebody resets Secure Boot and replaces any of bootloader / kernel / initrd components
+with malicious version that is going to send the passwords to the attacker - by entering the
+passwords manually you've just made their attack successful. Therefore, if you leave the
+fallback enabled and see (seemingly) Veles password prompt - **make sure you understand why
+unsealing or verification failed** and **make sure that the current environment is not
+attacker-controlled** before entering the passwords.
 
 Also note that we're discussing here boot-time ZFS datasets encryption only and Veles does
 nothing to protect you from "evil maid" attacks on passwords that are not managed by Veles and
@@ -204,7 +216,7 @@ believe they're side-channel resistant ATM.
 ### Passive [Man-in-the-Middle](https://en.wikipedia.org/wiki/Man-in-the-middle_attack)
 
 All the passive attacks on the components other than TPM itself (such as RAM, CPU, any buses etc)
-are explicitly "out of scope".
+are "out of scope".
 
 ### Active TPM attacks
 
@@ -214,12 +226,17 @@ voltage-based attacks, destructive TPM contents analysis, firmware or BIOS-targe
 
 If anyone capable of performing these types of attacks targets you - you're likely screwed anyway.
 But for any avoidance of doubt - Veles doesn't provide any protections in any of these
-(or similar) scenarios and they're explicitly "out of scope".
+(or similar) scenarios and they're "out of scope".
 
 ### Input attacks
 
 Any attacks that provide malicious input to Veles - such as through the console, the output of the
-tools Veles calls, the hijacked TPM interface, etc - are also explicitly "out of scope". I don't
-consider them important enough to address as if any of these channels is taken over by an
-attacker, this means either the boot path or TPM was successfully hijacked and there's nothing
-left for Veles to protect.
+tools Veles calls, the hijacked TPM interface, modified config or on-disk hash files, etc - are
+also "out of scope". I don't consider them important enough to address as if any of these
+channels is taken over by an attacker, this means either the boot path, the system itself or TPM
+was successfully hijacked and there's nothing left for Veles to protect.
+
+### Kernel attacks
+
+Any attacks on kernel, such as gaining access to kernel keyring or to Veles inputs / outputs via
+kernel interfaces, are "out of scope".

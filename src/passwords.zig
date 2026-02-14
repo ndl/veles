@@ -172,3 +172,24 @@ pub fn deserializePasswords(allocator: std.mem.Allocator, serialized: []const u8
     }
     return pwds.toOwnedSlice(allocator);
 }
+
+fn getManualPasswordMarker(allocator: std.mem.Allocator, enc_root: []const u8) ![:0]u8 {
+    return try std.fmt.allocPrintSentinel(allocator, "veles-manual-{s}", .{enc_root}, 0);
+}
+
+pub fn markPasswordAsManual(allocator: std.mem.Allocator, enc_root: []const u8) !void {
+    const keyname = try getManualPasswordMarker(allocator, enc_root);
+    defer allocator.free(keyname);
+    try keyutils.addPasswordToKeyring(keyname, "true");
+}
+
+pub fn isManualPassword(allocator: std.mem.Allocator, enc_root: []const u8) !bool {
+    const keyname = try getManualPasswordMarker(allocator, enc_root);
+    defer allocator.free(keyname);
+    var buf: [BUFFER_SIZE]u8 = undefined;
+    if (keyutils.getPasswordFromKeyring(keyname, &buf)) |_| {
+        return true;
+    } else |_| {
+        return false;
+    }
+}

@@ -76,11 +76,24 @@ in {
           requiredBy = [ "initrd.target" ];
           serviceConfig = {
             Type = "oneshot";
-            ExecStart = "${pkgs.veles}/bin/veles verify --input ${configPath}" +
+            ExecStart = "${pkgs.veles}/bin/veles verify --input ${configPath} --systemd_ask_password" +
               (lib.optionalString (datasets-stage2 != []) " --keep_keys");
             KeyringMode = "inherit";
             RemainAfterExit = true;
           };
+        };
+
+        # If stage 2 verification is enabled - make sure we won't reach `local-fs.target`
+        # before `veles-verify-stage2.service` successfully completes.
+        # Note that `veles-verify-stage2.service`is N/A in stage 1 which is fine -
+        # `sysinit.target` has `wants` (= not `requires`) dependency on `local-fs.target`
+        # so `systemd` will still continue booting even with missing dependency chain
+        # `local-fs.target` => `veles-verify-stage2.service` in stage 1, but this way we
+        # make sure `local-fs.target` remains not reached in stage 1 so it will block in
+        # stage 2 until `veles-verify-stage2.service` completes.
+        systemd.targets.local-fs = lib.mkIf (datasets-stage2 != []) {
+          after = [ "veles-verify-stage2.service" ];
+          requires = [ "veles-verify-stage2.service" ];
         };
 
         systemd.storePaths = [
@@ -89,21 +102,24 @@ in {
         ];
       };
 
+      # If stage 2 verification is enabled - make sure we won't reach `local-fs.target`
+      # before `veles-verify-stage2.service` successfully completes.
+      systemd.targets.local-fs = lib.mkIf (datasets-stage2 != []) {
+        after = [ "veles-verify-stage2.service" ];
+        requires = [ "veles-verify-stage2.service" ];
+      };
+
       systemd.services.veles-verify-stage2 = lib.mkIf (datasets-stage2 != []) {
         after = [ "tpm2.target" ];
         requires = [ "tpm2.target" ];
-        before = [ "sysinit.target" ];
-        requiredBy = [ "sysinit.target" ];
         unitConfig = {
           RequiresMountsFor = mountpoints-stage2;
-          # We need to start before `sysinit.target`, so
-          # exclude it from our dependencies.
           DefaultDependencies = false;
         };
         path = [ pkgs.zfs ]; # Needed for getting datasets properties.
         serviceConfig = {
           Type = "oneshot";
-          ExecStart = "${pkgs.veles}/bin/veles verify --input ${stage2ConfigPath} " +
+          ExecStart = "${pkgs.veles}/bin/veles verify --input ${stage2ConfigPath} --systemd_ask_password " +
             "--exclude ${lib.concatStringsSep "," datasets-stage1}";
           KeyringMode = "inherit";
           RemainAfterExit = true;

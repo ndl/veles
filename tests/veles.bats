@@ -7,6 +7,17 @@ source "${BATS_TEST_DIRNAME}"/common.bats
   assert_output --partial "USAGE:"
 }
 
+@test "Fails on non-existent config" {
+  run -255 veles verify --input "${TEST_TMPDIR}/non-existent.json" --no_poweroff
+  assert_output --partial "Failed to load Veles config"
+}
+
+@test "Fails on incorrect config" {
+  echo "broken" > "${TEST_TMPDIR}/broken.json"
+  run -255 veles verify --input "${TEST_TMPDIR}/broken.json" --no_poweroff
+  assert_output --partial "Failed to parse Veles config"
+}
+
 @test "Fails if 'zfs get' fails" {
   export TEST_ZFS_GET_EXITCODE=1
   run -1 veles setup --tpm "${SWTPM_DEVICE_PATH}" --output "${TEST_TMPDIR}/veles.json"
@@ -37,7 +48,10 @@ source "${BATS_TEST_DIRNAME}"/common.bats
   run -0 bats_pipe echo password456 \| veles load --input '${TEST_TMPDIR}/veles.json' --no_poweroff
   assert_output --partial "Keys loading failed but passwords were provided interactively"
   output=`cat "${TEST_TMPDIR}"/keys`
-  assert_output "zfs-zpool:password456"
+  assert_output << KEYS
+zfs-zpool:password456
+veles-manual-zpool:true
+KEYS
 }
 
 @test "Falls back to systemd-ask-password on load failure" {
@@ -45,7 +59,10 @@ source "${BATS_TEST_DIRNAME}"/common.bats
   run -0 veles load --input '${TEST_TMPDIR}/veles.json' --no_poweroff --systemd_ask_password
   assert_output --partial "Keys loading failed but passwords were provided interactively"
   output=`cat "${TEST_TMPDIR}"/keys`
-  assert_output "zfs-zpool:password123"
+  assert_output << KEYS
+zfs-zpool:password123
+veles-manual-zpool:true
+KEYS
 }
 
 @test "Fails load on missing config" {
@@ -75,8 +92,43 @@ source "${BATS_TEST_DIRNAME}"/common.bats
   assert_output --partial "Writing verification config to"
   output=`cat ${TEST_TMPDIR}/veles.json`
   assert_output `get_veles_config --slot=0 --measure='' --extend=0 --device=none --hash_alg=0 --pcr_hash_alg=0 --pcr_bank_size=0 --ecc_curve=0 --rsa_key_bits=0 --aes_key_bits=0`
-  run -0 veles -d verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff
+  run -0 veles verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff
   assert_output --partial "Verification succeeded"
+}
+
+@test "Reuses keys from 'load' in 'verify' if requested" {
+  get_veles_config > "${TEST_TMPDIR}/veles.json"
+  run -0 bats_pipe echo password456 \| veles load --input '${TEST_TMPDIR}/veles.json' --no_poweroff
+  assert_output --partial "Keys loading failed but passwords were provided interactively"
+  run -0 veles verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff
+  assert_output --partial "Verification failed but passwords were provided interactively"
+}
+
+@test "Fails if 'verify' fails and keys were not provided" {
+  get_veles_config > "${TEST_TMPDIR}/veles.json"
+  export SYSTEMD_ASK_PASSWORD_KEYS=''
+  run -255 veles verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff --systemd_ask_password
+  assert_output --partial "Verification failed and passwords were not provided interactively"
+}
+
+@test "Succeeds if 'verify' fails but keys were provided" {
+  get_veles_config > "${TEST_TMPDIR}/veles.json"
+  run -0 veles verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff --systemd_ask_password
+  assert_output --partial "Verification failed but passwords were provided interactively"
+  output=`cat "${TEST_TMPDIR}"/keys`
+  # Passwords should be deleted but the marker stays.
+  assert_output "veles-manual-zpool:true"
+}
+
+@test "Succeeds if 'verify' fails but keys were provided + keeps the keys" {
+  get_veles_config > "${TEST_TMPDIR}/veles.json"
+  run -0 veles verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff --systemd_ask_password --keep_keys
+  assert_output --partial "Verification failed but passwords were provided interactively"
+  output=`cat "${TEST_TMPDIR}"/keys`
+  assert_output << KEYS
+zfs-zpool:password456
+veles-manual-zpool:true
+KEYS
 }
 
 # Tests with TPM:
@@ -139,7 +191,7 @@ source "${BATS_TEST_DIRNAME}"/common.bats
   setup_swtpm
   run -0 veles setup --exclude zpool/home --tpm "${SWTPM_DEVICE_PATH}" --output "${TEST_TMPDIR}/veles.json" --systemd_ask_password
   assert_output --partial "Writing verification config to"
-  run -255 veles verify --input "${TEST_TMPDIR}"/veles.json --no_poweroff
+  run -255 veles verify --input "${TEST_TMPDIR}"/veles.json --no_poweroff --no_fallback
   assert_output --partial "Expected 1 mounts got 2"
 }
 
@@ -346,9 +398,9 @@ source "${BATS_TEST_DIRNAME}"/common.bats
   setup_swtpm
   run -0 veles setup --tpm "${SWTPM_DEVICE_PATH}" --output "${TEST_TMPDIR}/veles.json" --systemd_ask_password
   get_veles_config --mounts="[[\"zpool/home\",\"${TEST_TMPDIR}/home\"],[\"zpool/root\",\"${TEST_TMPDIR}\"],[\"extra\",\"/extra\"]]" > "${TEST_TMPDIR}/veles.json"
-  run -0 veles -d verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff
+  run -0 veles -d verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff --no_fallback
   assert_output --partial "Expected 3 mounts got 2"
-  run -255 veles verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff
+  run -255 veles verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff --no_fallback
   assert_output --partial "Failed to verify keys"
 }
 
@@ -356,9 +408,9 @@ source "${BATS_TEST_DIRNAME}"/common.bats
   setup_swtpm
   run -0 veles setup --tpm "${SWTPM_DEVICE_PATH}" --output "${TEST_TMPDIR}/veles.json" --systemd_ask_password
   get_veles_config --mounts="[[\"zpool/home\",\"${TEST_TMPDIR}/home\"],[\"zpool/root2\",\"${TEST_TMPDIR}\"]]" > "${TEST_TMPDIR}/veles.json"
-  run -0 veles -d verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff
+  run -0 veles -d verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff --no_fallback
   assert_output --partial "Unexpected mounted dataset 'zpool/root'"
-  run -255 veles verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff
+  run -255 veles verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff --no_fallback
   assert_output --partial "Failed to verify keys"
 }
 
@@ -366,9 +418,9 @@ source "${BATS_TEST_DIRNAME}"/common.bats
   setup_swtpm
   run -0 veles setup --tpm "${SWTPM_DEVICE_PATH}" --output "${TEST_TMPDIR}/veles.json" --systemd_ask_password
   get_veles_config --mounts="[[\"zpool/home\",\"${TEST_TMPDIR}/home\"],[\"zpool/root\",\"${TEST_TMPDIR}2\"]]" > "${TEST_TMPDIR}/veles.json"
-  run -0 veles -d verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff
+  run -0 veles -d verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff --no_fallback
   assert_output --partial "Dataset 'zpool/root' should be mounted at"
-  run -255 veles verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff
+  run -255 veles verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff --no_fallback
   assert_output --partial "Failed to verify keys"
 }
 
@@ -376,9 +428,9 @@ source "${BATS_TEST_DIRNAME}"/common.bats
   setup_swtpm
   run -0 veles setup --tpm "${SWTPM_DEVICE_PATH}" --output "${TEST_TMPDIR}/veles.json" --systemd_ask_password
   rm "${TEST_TMPDIR}/.veles.metadata"
-  run -0 veles -d verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff
+  run -0 veles -d verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff --no_fallback
   assert_output --partial "Dataset 'zpool/root' verification failed"
-  run -255 veles verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff
+  run -255 veles verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff --no_fallback
   assert_output --partial "Failed to verify keys"
 }
 
@@ -386,9 +438,9 @@ source "${BATS_TEST_DIRNAME}"/common.bats
   setup_swtpm
   run -0 veles setup --tpm "${SWTPM_DEVICE_PATH}" --output "${TEST_TMPDIR}/veles.json" --systemd_ask_password
   dd if=/dev/zero seek=1 of="${TEST_TMPDIR}"/.veles.metadata count=1 bs=1 conv=notrunc
-  run -0 veles -d verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff
+  run -0 veles -d verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff --no_fallback
   assert_output --partial "Properties verification failed for dataset 'zpool/root'"
-  run -255 veles verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff
+  run -255 veles verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff --no_fallback
   assert_output --partial "Failed to verify keys"
 }
 
@@ -396,9 +448,9 @@ source "${BATS_TEST_DIRNAME}"/common.bats
   setup_swtpm
   run -0 veles setup --tpm "${SWTPM_DEVICE_PATH}" --output "${TEST_TMPDIR}/veles.json" --systemd_ask_password
   dd if=/dev/zero seek=64 of="${TEST_TMPDIR}"/.veles.metadata count=1 bs=1 conv=notrunc
-  run -0 veles -d verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff
+  run -0 veles -d verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff --no_fallback
   assert_output --regexp "Password hash for dataset at .* was not seen yet, verifying"
-  run -255 veles verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff
+  run -255 veles verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff --no_fallback
   assert_output --partial "Failed to verify keys"
 }
 
@@ -454,7 +506,7 @@ source "${BATS_TEST_DIRNAME}"/common.bats
 
 @test "Calls 'zfs load-key' with correct params" {
   setup_swtpm
-  run -0 veles -d setup --tpm "${SWTPM_DEVICE_PATH}" --output "${TEST_TMPDIR}/veles.json" --systemd_ask_password
+  run -0 veles setup --tpm "${SWTPM_DEVICE_PATH}" --output "${TEST_TMPDIR}/veles.json" --systemd_ask_password
   assert_output --partial "Writing verification config to"
   output=`cat "${TEST_TMPDIR}"/.zfs-received-args`
   assert_output "load-key -L prompt -n zpool"
@@ -487,9 +539,9 @@ source "${BATS_TEST_DIRNAME}"/common.bats
   mv "${TEST_TMPDIR}"/.veles.metadata "${TEST_TMPDIR}"/home/.veles.metadata.new
   mv "${TEST_TMPDIR}"/home/.veles.metadata "${TEST_TMPDIR}"/.veles.metadata
   mv "${TEST_TMPDIR}"/home/.veles.metadata.new "${TEST_TMPDIR}"/home/.veles.metadata
-  run -0 veles -d verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff
+  run -0 veles -d verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff --no_fallback
   assert_output --partial "Properties verification failed for dataset 'zpool/home'"
-  run -255 veles verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff
+  run -255 veles verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff --no_fallback
   assert_output --partial "Failed to verify keys"
 }
 

@@ -59,7 +59,7 @@ Bootloader requirements:
 
 * All relevant ZFS datasets should be encrypted. ATM Veles supports only passwords encryption.
 * ZFS automount (that is, `zfs mount -a` or equivalents) should be preferably completely disabled.
-  If you do use it - you're heavily encouraged to also use `--all_datasets` option for properties
+  If you do use it - you're highly encouraged to also use `--all_datasets` option for properties
   verification (see below) to make sure an attacker cannot modify mount paths-related properties
   without Veles noticing.
 
@@ -186,6 +186,14 @@ chroot into that directory. If that's how your boot setup works - **you need to 
 veles.json config** after `setup` finishes to specify the actual mounts that Veles will
 see at `initrd` stage.
 
+Note, however, that any adjustments to the configs need to be done carefully, as any errors
+in any of the configs used for `load` or `verify` will be fatal: not only the loading /
+verification will fail, but the fallback won't work either, as the fallback requires knowing
+encryption roots to check the passwords, and if config parsing failed - we don't know them.
+Therefore, if you do modify the configs - you're strongly encouraged to call for example
+`verify` on these modified configs with `-d` option. Even if it fails because of missing
+keys or extra mounted datasets - at least you'll see that the config was loaded successfully.
+
 You also need to select the set of PCRs to measure that ensures the authenticated boot path
 all the way to Veles call. Consult
 [Linux TPM PCR Registry](https://uapi-group.org/specifications/specs/linux_tpm_pcr_registry/)
@@ -194,14 +202,6 @@ higher-number / unused PCR for storing the hash of ZFS datasets properties (the 
 in Veles settings is PCR 15), preferably - also the PCR extended by bootloader that indicates
 which system was booted and optionally any other PCRs in-between that are either unused or set
 to stable values.
-
-By default the `--no_fallback` option is not set so if the unsealing fails - you can still
-boot by entering passwords manually. Note, however, that this is also exactly how the
-"evil maid" attack scenario will look like, that is - if somebody resets Secure Boot and
-replaces any of bootloader / kernel / initrd components with malicious version that is going
-to send the passwords to the attacker - by entering the passwords manually you've just made
-their attack successful. Therefore, if you leave the fallback enabled - **make sure you
-understand why unsealing failed** before proceeding with entering passwords manually.
 
 Adjusting KDF options is optional. I don't expect that in most scenarios brute-forcing the
 files with passwords hashes on encrypted datasets is an attack vector to worry about. If an
@@ -236,12 +236,12 @@ PCRs won't match the expected values - the unsealing will fail. Then, depending 
 specified, Veles will take one of the following actions:
 
 * Unless `--no_fallback` option is set: asks the user to enter passwords manually, if the
-  passwords are entered successfully (as indicated by exit code of `zfs load-key`) - store
-  the passwords in keyring and exit cleanly.
-* If `--debug` option is set (**use this for debug only**): print error message but exit
+  passwords are entered successfully (as indicated by exit code of `zfs load-key`) - stores
+  the passwords in keyring and exits cleanly.
+* If `--debug` option is set (**use this for debug only**): prints error message but exits
   cleanly, thus allowing the boot to continue. The boot will likely fail, though, as ZFS
   encryption passwords were not loaded.
-* If `--no_poweroff` option is set - exit with error code, thus stopping the boot.
+* If `--no_poweroff` option is set - exits with error code, thus stopping the boot.
 * Otherwise it will shutdown or reboot the machine, and failing to do that - will return error
   code so that the boot is stopped.
 
@@ -273,6 +273,10 @@ During this call Veles does the following:
 
 If any of these steps fail - Veles will do one of the following actions:
 
+* Unless `--no_fallback` option is set: checks if the user has entered the passwords manually
+  already at `load` stage, if yes - treats that as successful verification, if no - asks the user
+  to enter passwords manually, if the passwords are entered successfully (as indicated by exit
+  code of `zfs load-key`) - assumes the verification succeeded and exits cleanly.
 * If `--debug` option is set (**use this for debug only**): print error message but exit cleanly,
   thus allowing the boot to continue.
 * If `--no_poweroff` option is set - exit with error code, thus stopping the boot.
@@ -297,12 +301,22 @@ specified. You'll also need to make sure that each call has the corresponding co
 includes only those datasets that should be authenticated at this particular call. You should
 exclude already verified datasets with `--exclude` option.
 
+### Extension PCR content
+
+The PCR used to store datasets properties hash during unsealing is modified afterwards both
+in `load` and `verify` calls in a deterministic way to prevent anyone from unsealing the
+passwords again during this boot - but also to serve as a potential measurement value for other
+boot stages or further TPM operations. The value of this PCR after last `verify` call can be
+used to indicate "both passwords unsealing and datasets authentication succeeded".
+
 ### Password input
 
-In `setup` (and, if fallback is enabled, in `load`) modes Veles will ask for encryption passwords
-for ZFS. These passwords will be asked either directly in console or via systemd interface
-(if `--systemd_ask_password` option is specified). For both of these input methods the passwords
-will be verified via `zfs load-key` call and then loaded into user keyring.
+In `setup` (and, if fallback is enabled, in `load` and `verify`) modes Veles will ask for
+encryption passwords for ZFS. These passwords will be asked either directly in console or via
+systemd interface (if `--systemd_ask_password` option is specified). For both of these input
+methods the passwords will be verified via `zfs load-key` call and then loaded into user keyring.
+Addditionally, for each password entered manually at `load` or `verify` stage, an extra marker
+with the name `veles-manual-<encryption-root>` and value `true` will be added to the user keyring.
 
 ## Initrd integration
 
@@ -384,9 +398,17 @@ All the tips below are for debugging only and **should be reverted before the ac
   would cause verification failures.
 * If you want to get closer to the actual deployment behavior but still don't want to reboot the
   system in the case of failures, both `load` and `verify` accept `--no_poweroff` option.
+* Keep track of persistent handles that you're using during debugging / experiments. Typically
+  TPMs have very limited number of persistent handles available and it's easy to exhaust them
+  all if you're allocating them repeatedly / don't overwrite the same handle. You can use
+  smth like `tpm2_evictcontrol -C o -c 0x81000003` to clear the persistent handle with index
+  0x81000003, but do check out which index is used in the output of Veles.
 * Use `tpm2-tools` for inspecting the state of PCRs and TPM. Some of the useful commands:
   `tpm2_pcrread`, `tpm2_pcrreset 16`, `tpm2_getcap handles-persistent`,
   `tpm2_getcap properties-variable`, `tpm2_getcap algorithms`.
+* Note that if you have any other information stored in TPM (such as BitLocker keys for Windows
+  disks) you should be careful with TPM commands that modify TPM state, such as
+  `tpm2_evictcontrol`, `tpm2_clear` etc as these can break BitLocker setup if used incorrectly.
 
 ### TPM lockout
 
@@ -394,10 +416,10 @@ TPMs typically have dictionary attack lookout functionality enabled that will bl
 to TPM for some time if too many failed auth attempts are done. Each failed unseal call will count.
 
 You might need to temporarily relax the limits of DA lockout while you're debugging - see
-`tpm2_dictionarylockout` tool.
+`tpm2_dictionarylockout` command.
 
 ### Emergency access
 
-For debugging some types of failures it might be beneficial to enable an emergency access into
-initrd shell. For NixOS in systemd initrd mode this can be done with
+For debugging some types of failures it might be beneficial to **temporarily** enable an emergency
+access into initrd shell. For NixOS in systemd initrd mode this can be done with
 `boot.initrd.systemd.emergencyAccess = true` setting.

@@ -22,6 +22,9 @@ const veles = @import("veles");
 
 pub const std_options: std.Options = .{
     .logFn = velesLogFn,
+    // Make sure all the messages get to `velesLogFn`,
+    // we'll filter them out inside.
+    .log_level = .debug,
 };
 
 // Default log level to use, as `std.options.log_level` doesn't
@@ -87,7 +90,7 @@ pub fn main() !void {
     defer arena.deinit();
     const allocator: std.mem.Allocator = arena.allocator();
 
-    var opts = try simargs.parse(allocator, Options, "[file]", "0.3.5");
+    var opts = try simargs.parse(allocator, Options, "[file]", "0.3.6");
     defer opts.deinit();
 
     if (opts.args.debug) {

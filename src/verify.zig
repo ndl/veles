@@ -21,6 +21,7 @@ const std = @import("std");
 const common = @import("common.zig");
 const datasets = @import("datasets.zig");
 const keyutils = @import("keyutils.zig");
+const load = @import("load.zig");
 const passwords = @import("passwords.zig");
 const tpm = @import("tpm.zig");
 const zfs = @import("zfs.zig");
@@ -39,13 +40,17 @@ pub const Options = struct {
     help: bool = false,
     input: []const u8 = "veles.json",
     keep_keys: bool = false,
+    no_fallback: bool = false,
     no_poweroff: bool = true,
+    systemd_ask_password: bool = false,
 
     pub const __messages__ = .{
         .exclude = "Comma-separated list of dataset names to exclude from verification ",
         .input = "File path to load ZFS verification config from ",
         .keep_keys = "If true - do not remove keys from the keyring ",
+        .no_fallback = "Don't ask the user to type a password if verification failed ",
         .no_poweroff = "Skip powering off the system in case of verification failure ",
+        .systemd_ask_password = "Use 'systemd-ask-password' for retrieving passwords ",
     };
 
     pub const __shorts__ = .{
@@ -53,7 +58,9 @@ pub const Options = struct {
         .help = .h,
         .input = .i,
         .keep_keys = .k,
+        .no_fallback = .n,
         .no_poweroff = .o,
+        .systemd_ask_password = .p,
     };
 };
 
@@ -179,6 +186,24 @@ fn verifyImpl(allocator: std.mem.Allocator, opts: Options) !void {
     }
 }
 
+fn clearPasswordsFromKeyring(allocator: std.mem.Allocator, input: []const u8) !void {
+    // Load verification config.
+    var parsed_config = try common.loadVerificationConfig(allocator, input);
+    defer parsed_config.deinit();
+    const config = parsed_config.value;
+
+    for (config.encryption_roots) |enc_root| {
+        const keyname = try std.fmt.allocPrintSentinel(
+            allocator,
+            "zfs-{s}",
+            .{enc_root},
+            0,
+        );
+        defer allocator.free(keyname);
+        keyutils.deletePasswordFromKeyring(keyname) catch {};
+    }
+}
+
 pub fn run(allocator: std.mem.Allocator, opts: Options) !void {
     const sigact = std.posix.Sigaction{
         .handler = .{ .handler = std.posix.SIG.IGN },
@@ -190,6 +215,23 @@ pub fn run(allocator: std.mem.Allocator, opts: Options) !void {
 
     std.log.info("Veles called in 'verify' mode", .{});
     verifyImpl(allocator, opts) catch |err| {
+        if (!opts.no_fallback) {
+            if (load.getAllPasswords(
+                allocator,
+                opts.input,
+                opts.systemd_ask_password,
+                true, // check_only
+                true, // prompt_if_not_manual
+            )) |_| {
+                if (!opts.keep_keys) {
+                    clearPasswordsFromKeyring(allocator, opts.input) catch {};
+                }
+                std.log.warn("Verification failed but passwords were provided interactively", .{});
+                return;
+            } else |_| {
+                std.log.err("Verification failed and passwords were not provided interactively", .{});
+            }
+        }
         if (common.debug) {
             std.log.err("Failed to verify keys: {t}", .{err});
         } else if (!opts.no_poweroff) {
