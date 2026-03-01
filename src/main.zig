@@ -90,7 +90,7 @@ pub fn main() !void {
     defer arena.deinit();
     const allocator: std.mem.Allocator = arena.allocator();
 
-    var opts = try simargs.parse(allocator, Options, "[file]", "0.3.6");
+    var opts = try simargs.parse(allocator, Options, "[file]", "0.3.7");
     defer opts.deinit();
 
     if (opts.args.debug) {

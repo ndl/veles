@@ -11,13 +11,6 @@
       "pool": "zpool",
       "createtxg": "1",
       "properties": {
-        "acltype": {
-          "value": "posix",
-          "source": {
-            "type": "LOCAL",
-            "data": "-"
-          }
-        },
         "canmount": {
           "value": "on",
           "source": {
@@ -130,24 +123,10 @@
             "data": "-"
           }
         },
-        "used": {
-          "value": "1.23T",
-          "source": {
-            "type": "NONE",
-            "data": "-"
-          }
-        },
         "utf8only": {
           "value": "off",
           "source": {
             "type": "NONE",
-            "data": "-"
-          }
-        },
-        "zoned": {
-          "value": "off",
-          "source": {
-            "type": "DEFAULT",
             "data": "-"
           }
         }
@@ -159,13 +138,6 @@
       "pool": "zpool",
       "createtxg": "3",
       "properties": {
-        "acltype": {
-          "value": "posix",
-          "source": {
-            "type": "INHERITED",
-            "data": "zpool"
-          }
-        },
         "canmount": {
           "value": "on",
           "source": {
@@ -278,24 +250,10 @@
             "data": "-"
           }
         },
-        "used": {
-          "value": "456G",
-          "source": {
-            "type": "NONE",
-            "data": "-"
-          }
-        },
         "utf8only": {
           "value": "off",
           "source": {
             "type": "NONE",
-            "data": "-"
-          }
-        },
-        "zoned": {
-          "value": "off",
-          "source": {
-            "type": "DEFAULT",
             "data": "-"
           }
         }
@@ -307,13 +265,6 @@
       "pool": "zpool",
       "createtxg": "5",
       "properties": {
-        "acltype": {
-          "value": "posix",
-          "source": {
-            "type": "INHERITED",
-            "data": "zpool"
-          }
-        },
         "canmount": {
           "value": "on",
           "source": {
@@ -426,24 +377,10 @@
             "data": "-"
           }
         },
-        "used": {
-          "value": "789G",
-          "source": {
-            "type": "NONE",
-            "data": "-"
-          }
-        },
         "utf8only": {
           "value": "off",
           "source": {
             "type": "NONE",
-            "data": "-"
-          }
-        },
-        "zoned": {
-          "value": "off",
-          "source": {
-            "type": "DEFAULT",
             "data": "-"
           }
         }

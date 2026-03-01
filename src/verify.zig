@@ -90,10 +90,6 @@ fn verifyImpl(allocator: std.mem.Allocator, opts: Options) !void {
     defer json_datasets_props.deinit();
     const datasets_props = json_datasets_props.value.datasets.map;
 
-    // Get target properties to verify.
-    var target_props = try zfs.getTargetProperties(allocator);
-    defer target_props.deinit();
-
     // encryption root from configdata -> password:
     var config_enc_roots: std.StringHashMap([]const u8) = .init(allocator);
     defer common.freeStringsMap(allocator, &config_enc_roots);
@@ -170,7 +166,6 @@ fn verifyImpl(allocator: std.mem.Allocator, opts: Options) !void {
                 real_mnt_path,
                 password,
                 props,
-                target_props,
                 &pwd_hashes_to_enc_roots,
             )) |hash| {
                 defer allocator.free(hash);

@@ -19,8 +19,6 @@
 const std = @import("std");
 const eql = @import("std").mem.eql;
 
-const set = @import("ziglangSet");
-
 const common = @import("common.zig");
 const passwords = @import("passwords.zig");
 const properties = @import("properties.zig");
@@ -44,18 +42,16 @@ pub fn verifyMetadataForDataset(
     mount_path: []const u8,
     password: []const u8,
     props: std.StringArrayHashMapUnmanaged(zfs.Property),
-    target_props: set.Set([]const u8),
     pwd_hashes_to_enc_roots: *std.StringHashMap([]const u8),
 ) ![]const u8 {
     const meta = try readMetadataForDataset(allocator, mount_path);
     errdefer allocator.free(meta);
     const actual_props_hash = meta[0..DIGEST_SIZE];
     const actual_pwd_hash = meta[DIGEST_SIZE..];
-    const expected_props_hash = try getPropertiesHashForDataset(
+    const expected_props_hash = try properties.getPropertiesHashForDataset(
         allocator,
         ds_name,
         props,
-        target_props,
     );
     if (!eql(u8, &expected_props_hash, actual_props_hash)) {
         std.log.debug("Properties verification failed for dataset '{s}'", .{ds_name});
@@ -100,10 +96,6 @@ pub fn writeMetadataForAllDatasets(
     defer common.freeStringsMap(allocator, &enc_roots_to_pwd_hashes);
     defer common.secureZeroStringsMap(&enc_roots_to_pwd_hashes);
 
-    // ZFS properties to hash.
-    var target_props = try zfs.getTargetProperties(allocator);
-    defer target_props.deinit();
-
     var ds_it = datasets.iterator();
     while (ds_it.next()) |ds| {
         const ds_name = ds.key_ptr.*;
@@ -129,11 +121,10 @@ pub fn writeMetadataForAllDatasets(
                 );
             }
             const password = enc_roots_to_pwds.get(enc_root).?;
-            const expected_props_hash = try getPropertiesHashForDataset(
+            const expected_props_hash = try properties.getPropertiesHashForDataset(
                 allocator,
                 ds_name,
                 props,
-                target_props,
             );
             const actual_metadata = readMetadataForDataset(allocator, mount_path) catch null;
             defer {
@@ -212,32 +203,6 @@ fn getDatasetMetadataPath(allocator: std.mem.Allocator, mount_path: []const u8) 
         "{s}/.veles.metadata",
         .{if (eql(u8, mount_path, "/")) "" else mount_path},
     );
-}
-
-fn getPropertiesHashForDataset(
-    allocator: std.mem.Allocator,
-    ds_name: []const u8,
-    props: std.StringArrayHashMapUnmanaged(zfs.Property),
-    target_props: set.Set([]const u8),
-) ![DIGEST_SIZE]u8 {
-    var props_to_hash: std.ArrayList([]const u8) = .empty;
-    defer common.freeStringsArray(allocator, &props_to_hash);
-    try properties.appendTargetProperties(
-        allocator,
-        ds_name,
-        props,
-        target_props,
-        &props_to_hash,
-    );
-
-    var props_hasher = common.Hasher.init(.{});
-    for (props_to_hash.items) |item| {
-        props_hasher.update(item);
-        props_hasher.update("\n");
-    }
-    var props_hash: [DIGEST_SIZE]u8 = undefined;
-    props_hasher.final(&props_hash);
-    return props_hash;
 }
 
 fn readMetadataForDataset(allocator: std.mem.Allocator, mount_path: []const u8) ![]const u8 {

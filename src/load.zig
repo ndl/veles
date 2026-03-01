@@ -91,6 +91,9 @@ pub fn getAllPasswords(
             if (!prompt_if_not_manual or try passwords.isManualPassword(allocator, enc_root)) {
                 continue;
             }
+            // The password is in the keyring but is not marked as manual -
+            // clear it and re-prompt.
+            try keyutils.deletePasswordFromKeyring(keyname);
         } else |_| {}
 
         const prompt = try std.fmt.allocPrint(

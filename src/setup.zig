@@ -28,8 +28,6 @@ const tpm = @import("tpm.zig");
 const zfs = @import("zfs.zig");
 
 const eql = std.mem.eql;
-const BUFFER_SIZE = common.BUFFER_SIZE;
-const DIGEST_SIZE = common.DIGEST_SIZE;
 
 const TpmInfo = common.TpmInfo;
 const VerificationConfig = common.VerificationConfig;
@@ -115,7 +113,7 @@ fn writeVerificationConfig(
     };
     var config_file = try std.fs.cwd().createFile(output_path, .{ .mode = 0o600 });
     defer config_file.close();
-    var config_buf: [BUFFER_SIZE]u8 = undefined;
+    var config_buf: [common.BUFFER_SIZE]u8 = undefined;
     var config_writer = config_file.writer(&config_buf);
     const config_writer_intf = &config_writer.interface;
     var config_stringifier = std.json.Stringify{ .writer = config_writer_intf };
@@ -181,7 +179,7 @@ pub fn run(allocator: std.mem.Allocator, opts: Options) !void {
         );
 
         // Convert to hex.
-        var hex_buf: [BUFFER_SIZE]u8 = undefined;
+        var hex_buf: [common.BUFFER_SIZE]u8 = undefined;
         const props_hash_hex = try common.toHex(&props_hash, &hex_buf);
         std.log.info("Verification properties hash: {s}", .{props_hash_hex});
 
@@ -209,7 +207,7 @@ fn setupTpm(
     enc_roots: std.StringHashMap([]const u8),
     enc_roots_keys: std.ArrayList([]const u8),
     mounts: std.StringHashMap([]const u8),
-    props_hash: [DIGEST_SIZE]u8,
+    props_hash: [common.DIGEST_SIZE]u8,
     opts: Options,
 ) !void {
     var enc_roots_values: std.ArrayList([]const u8) = try .initCapacity(allocator, enc_roots.count());

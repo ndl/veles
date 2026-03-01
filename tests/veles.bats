@@ -444,6 +444,16 @@ KEYS
   assert_output --partial "Failed to verify keys"
 }
 
+@test "Fails verify with wrong properties hash, not provided password and keep keys" {
+  setup_swtpm
+  run -0 veles setup --tpm "${SWTPM_DEVICE_PATH}" --output "${TEST_TMPDIR}/veles.json" --systemd_ask_password
+  dd if=/dev/zero seek=1 of="${TEST_TMPDIR}"/.veles.metadata count=1 bs=1 conv=notrunc
+  export SYSTEMD_ASK_PASSWORD_KEYS=''
+  # This is roughly the setup in stage 1.
+  run -255 veles verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff --systemd_ask_password --keep_keys
+  assert_output --partial "Failed to verify keys"
+}
+
 @test "Fails verify with wrong password hash" {
   setup_swtpm
   run -0 veles setup --tpm "${SWTPM_DEVICE_PATH}" --output "${TEST_TMPDIR}/veles.json" --systemd_ask_password
@@ -559,4 +569,15 @@ KEYS
   assert_output --partial "Keys loading succeeded"
   run -0 veles verify --input "${TEST_TMPDIR}/veles.json" --no_poweroff
   assert_output --partial "Verification succeeded"
+}
+
+@test "Datasets properties hashes are stable" {
+  setup_swtpm
+  run -0 veles -d setup --tpm "${SWTPM_DEVICE_PATH}" --output "${TEST_TMPDIR}/veles.json" --systemd_ask_password
+  # zpool/home:
+  assert_output --partial "Properties hash: 7484ead7708a7e07bbb6759e45f16942b69810a582fa643cadfe17f543b6fb4d"
+  # zpool/root:
+  assert_output --partial "Properties hash: 082633b535d46b27dffa2a9ec13528468b1d70d7df88f6bb029f096c3c73d40e"
+  # Total hash of all datasets:
+  assert_output --partial "Properties hash: 27799270f8d636ca15a1a6b416954ef3c37535ac3380192010a44943a0d4a64e"
 }

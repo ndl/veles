@@ -1,9 +1,5 @@
-{ system ? builtins.currentSystem }:
+{ nixpkgs ? <nixpkgs>, system ? builtins.currentSystem }:
 let
-  nixpkgs = fetchTarball {
-    url = "https://github.com/NixOS/nixpkgs/archive/d351d0653aeb7877273920cd3e823994e7579b0b.tar.gz";
-    sha256 = "049hhh8vny7nyd26dfv7i962jpg18xb5bg6cv126b8akw5grb0dg";
-  };
   pkgs = import nixpkgs {
     overlays = [];
     config = {};

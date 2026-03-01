@@ -10,7 +10,7 @@
 }:
 stdenv.mkDerivation (finalAttrs: {
   pname = "veles";
-  version = "0.3.6";
+  version = "0.3.7";
 
   src = [
     ./build.zig

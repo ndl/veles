@@ -19,8 +19,6 @@
 const std = @import("std");
 const eql = @import("std").mem.eql;
 
-const set = @import("ziglangSet");
-
 const common = @import("common.zig");
 const passwords = @import("passwords.zig");
 
@@ -59,9 +57,30 @@ const ZfsError = error{
 
 pub fn getAllDatasetsProperties(allocator: std.mem.Allocator) !std.json.Parsed(Datasets) {
     // Gather all datasets and their properties.
+    const target_props = [_][]const u8{
+        "canmount",
+        "casesensitivity",
+        "checksum",
+        "createtxg",
+        "encryption",
+        "encryptionroot",
+        "guid",
+        "keyformat",
+        "keylocation",
+        "longname",
+        "mountpoint",
+        "normalization",
+        "objsetid",
+        "overlay",
+        "pbkdf2iters",
+        "type",
+        "utf8only",
+    };
+    const target_props_joined = try std.mem.join(allocator, ",", &target_props);
+    defer allocator.free(target_props_joined);
     const result = try std.process.Child.run(.{
         .allocator = allocator,
-        .argv = &[_][]const u8{ "zfs", "get", "all", "-j" },
+        .argv = &[_][]const u8{ "zfs", "get", target_props_joined, "-j" },
         .max_output_bytes = 1024 * 1024,
     });
     if (result.term.Exited != 0) {
@@ -107,30 +126,6 @@ pub fn getMounts(allocator: std.mem.Allocator, exclude: []const u8) !std.StringH
         }
     }
     return mounts;
-}
-
-pub fn getTargetProperties(allocator: std.mem.Allocator) !set.Set([]const u8) {
-    var target_props = set.Set([]const u8).init(allocator);
-    _ = try target_props.appendSlice(&.{
-        "canmount",
-        "casesensitivity",
-        "checksum",
-        "createtxg",
-        "encryption",
-        "encryptionroot",
-        "guid",
-        "keyformat",
-        "keylocation",
-        "longname",
-        "mountpoint",
-        "normalization",
-        "objsetid",
-        "overlay",
-        "pbkdf2iters",
-        "type",
-        "utf8only",
-    });
-    return target_props;
 }
 
 pub fn loadKey(

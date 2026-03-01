@@ -1,5 +1,25 @@
 # Change Log
 
+## [0.3.7] - 2026-03-01
+
+## Changed
+
+* Retrieve from ZFS only the properties we need for verification. This prevents an issue
+  with custom properties encoding where, depending on the locale settings, the output of
+  `zig get` might terminate prematurely if some properties values contain non-ASCII chars.
+  Also this simplifies the logic a bit and reduces dependencies + binary size because we
+  don't need to test which properties to hash anymore.
+* (related to above) Fixed a bug where the order of properties in single dataset properties
+  hashing was not stable.
+* Fixed a bug where `--keep_keys` option in combination with fallback mode was causing
+  verification to succeed even if the passwords were not entered manually but provided
+  from `load`.
+
+## Update instructions
+
+* Due to the properties ordering bugfix the hashes will change, therefore **re-running
+  setup is required**.
+
 ## [0.3.6] - 2026-02-14
 
 ### Added

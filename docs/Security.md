@@ -213,6 +213,10 @@ In both cases Veles uses standard Zig library implementations of these (e.g. see
 these in detail + lack the knowledge / skills to perform this analysis anyway, but I don't
 believe they're side-channel resistant ATM.
 
+### [Cold boot](https://en.wikipedia.org/wiki/Cold_boot_attack)
+
+Out of scope as ZFS loaded keys are subject to exactly the same attack even without Veles.
+
 ### Passive [Man-in-the-Middle](https://en.wikipedia.org/wiki/Man-in-the-middle_attack)
 
 All the passive attacks on the components other than TPM itself (such as RAM, CPU, any buses etc)

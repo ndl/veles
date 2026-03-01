@@ -42,17 +42,7 @@ pub fn unseal(
     const policy_session_handle = auth_session.getPolicySessionHandle();
     const session_key = auth_session.getSessionKey();
 
-    var init_auth_policy = try data.createHash(dev.caps.hash_alg);
-    defer init_auth_policy.deinit();
-
-    try sessions.policyGetDigest(dev, policy_session_handle, init_auth_policy.slice());
-
     try pcrs.policyPcr(dev, policy_session_handle, pcrs_indices, null);
-
-    var auth_policy = try data.createHash(dev.caps.hash_alg);
-    defer auth_policy.deinit();
-
-    try sessions.policyGetDigest(dev, policy_session_handle, auth_policy.slice());
 
     var name = try data.createHash(dev.caps.hash_alg);
     defer name.deinit();

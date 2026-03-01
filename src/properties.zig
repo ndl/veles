@@ -19,8 +19,6 @@
 const std = @import("std");
 const eql = @import("std").mem.eql;
 
-const set = @import("ziglangSet");
-
 const common = @import("common.zig");
 const zfs = @import("zfs.zig");
 
@@ -34,21 +32,16 @@ pub fn appendTargetProperties(
     allocator: std.mem.Allocator,
     ds_name: []const u8,
     props: std.StringArrayHashMapUnmanaged(zfs.Property),
-    target_props: set.Set([]const u8),
     out_props: *std.ArrayList([]const u8),
 ) !void {
     var prop_it = props.iterator();
     while (prop_it.next()) |prop_entry| {
-        const prop_name = prop_entry.key_ptr.*;
-        if (target_props.contains(prop_name)) {
-            const prop_value = prop_entry.value_ptr.*.value;
-            const prop_line = try std.fmt.allocPrint(
-                allocator,
-                "{s}:{s}:{s}",
-                .{ ds_name, prop_name, prop_value },
-            );
-            try out_props.append(allocator, prop_line);
-        }
+        const prop_line = try std.fmt.allocPrint(
+            allocator,
+            "{s}:{s}:{s}",
+            .{ ds_name, prop_entry.key_ptr.*, prop_entry.value_ptr.*.value },
+        );
+        try out_props.append(allocator, prop_line);
     }
 }
 
@@ -58,9 +51,6 @@ pub fn getPropertiesHashForAllDatasets(
     all_datasets: bool,
     mounts: std.StringHashMap([]const u8),
 ) ![DIGEST_SIZE]u8 {
-    var target_props = try zfs.getTargetProperties(allocator);
-    defer target_props.deinit();
-
     // Sanity check: all mounts should have datasets properties.
     try checkAllMountsHaveProperties(datasets, mounts);
 
@@ -81,25 +71,26 @@ pub fn getPropertiesHashForAllDatasets(
             allocator,
             ds_name,
             ds_entry.value_ptr.properties.map,
-            target_props,
             &props_to_hash,
         );
     }
-    std.mem.sort([]const u8, props_to_hash.items, {}, stringLessThan);
-    if (common.debug) {
-        std.log.debug("Properties that will be hashed:", .{});
-        for (props_to_hash.items) |item| {
-            std.log.debug("{s}", .{item});
-        }
-    }
-    var props_hasher = common.Hasher.init(.{});
-    for (props_to_hash.items) |item| {
-        props_hasher.update(item);
-        props_hasher.update("\n");
-    }
-    var props_hash: [DIGEST_SIZE]u8 = undefined;
-    props_hasher.final(&props_hash);
-    return props_hash;
+    return getPropertiesHash(props_to_hash.items);
+}
+
+pub fn getPropertiesHashForDataset(
+    allocator: std.mem.Allocator,
+    ds_name: []const u8,
+    props: std.StringArrayHashMapUnmanaged(zfs.Property),
+) ![DIGEST_SIZE]u8 {
+    var props_to_hash: std.ArrayList([]const u8) = .empty;
+    defer common.freeStringsArray(allocator, &props_to_hash);
+    try appendTargetProperties(
+        allocator,
+        ds_name,
+        props,
+        &props_to_hash,
+    );
+    return getPropertiesHash(props_to_hash.items);
 }
 
 fn checkAllMountsHaveProperties(
@@ -116,29 +107,27 @@ fn checkAllMountsHaveProperties(
     }
 }
 
-fn getPropertiesHashForDataset(
-    allocator: std.mem.Allocator,
-    ds_name: []const u8,
-    props: std.StringArrayHashMapUnmanaged(zfs.Property),
-    target_props: set.Set([]const u8),
-) ![DIGEST_SIZE]u8 {
-    var props_to_hash: std.ArrayList([]const u8) = .empty;
-    defer common.freeStringsArray(allocator, &props_to_hash);
-    try appendTargetProperties(
-        allocator,
-        ds_name,
-        props,
-        target_props,
-        &props_to_hash,
-    );
-
+fn getPropertiesHash(props_to_hash: [][]const u8) ![DIGEST_SIZE]u8 {
+    std.mem.sort([]const u8, props_to_hash, {}, stringLessThan);
+    if (common.debug) {
+        std.log.debug("Properties that will be hashed:", .{});
+        for (props_to_hash) |item| {
+            std.log.debug("{s}", .{item});
+        }
+    }
     var props_hasher = common.Hasher.init(.{});
-    for (props_to_hash.items) |item| {
+    for (props_to_hash) |item| {
         props_hasher.update(item);
         props_hasher.update("\n");
     }
     var props_hash: [DIGEST_SIZE]u8 = undefined;
     props_hasher.final(&props_hash);
+    if (common.debug) {
+        // Convert to hex.
+        var hex_buf: [common.BUFFER_SIZE]u8 = undefined;
+        const props_hash_hex = try common.toHex(&props_hash, &hex_buf);
+        std.log.info("Properties hash: {s}", .{props_hash_hex});
+    }
     return props_hash;
 }
 
